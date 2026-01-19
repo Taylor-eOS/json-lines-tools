@@ -151,14 +151,18 @@ def main():
         if not root.blocks or not root.candidates:
             return
         blocks = root.blocks[:]
+        merges = []
         for i, ch in enumerate(root.choices[:current_index]):
             if ch == "skip":
                 continue
             cand = root.candidates[i]
             add_space = (ch == "with_space")
+            merges.append((cand["prev_idx"], cand["cont_idx"], cand["prev_idx"]+1, add_space))
+        merges.sort(key=lambda x: x[0], reverse=True)
+        for prev_idx, cont_idx, excl_idx, add_space in merges:
             sp = " " if add_space else ""
-            blocks[cand["prev_idx"]]["text"] += sp + blocks[cand["cont_idx"]]["text"]
-            del blocks[cand["prev_idx"] + 1 : cand["cont_idx"] + 1]
+            blocks[prev_idx]["text"] += sp + blocks[cont_idx]["text"]
+            del blocks[excl_idx:cont_idx+1]
         save_path = filedialog.asksaveasfilename(
             title="Save progress",
             initialfile="merged.json",
