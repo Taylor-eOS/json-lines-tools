@@ -51,6 +51,7 @@ def main():
         mid.bind("<Button-1>",toggle_fn)
         right.bind("<Button-1>",toggle_fn)
         row_widgets.append((row,left,right,var))
+    root.row_widgets=row_widgets
     nav_frame=ttk.Frame(main_frame)
     nav_frame.pack(pady=12)
     btn_prev=ttk.Button(nav_frame,text="Previous",width=16)
@@ -96,7 +97,7 @@ def main():
         end=min(start+ROWS,total)
         info_label.config(text=f"Showing {start+1}–{end} of {total}")
         for i in range(ROWS):
-            row,left,right,var=row_widgets[i]
+            row,left,right,var=root.row_widgets[i]
             idx=start+i
             if idx<total:
                 cand=root.candidates[idx]
@@ -113,7 +114,7 @@ def main():
         start=root.offset
         for i in range(ROWS):
             idx=start+i
-            if idx<len(root.selections):root.selections[idx]=row_widgets[i][3].get()
+            if idx<len(root.selections):root.selections[idx]=root.row_widgets[i][3].get()
     def go_next():
         save_state_from_ui()
         if root.offset+ROWS<len(root.candidates):
@@ -135,17 +136,16 @@ def save_all(root):
     for i in range(ROWS):
         idx=start+i
         if idx<len(root.selections):
-            try:root.selections[idx]=root.children["!frame"].winfo_children()[1].winfo_children()[i][3].get()
-            except:pass
+            root.selections[idx]=root.row_widgets[i][3].get()
     blocks=root.blocks[:]
     merges=[]
-    for i,use_space in enumerate(root.selections):
-        cand=root.candidates[i]
-        merges.append((cand["prev_idx"],cand["cont_idx"],cand["prev_idx"]+1,use_space))
+    for i,selected in enumerate(root.selections):
+        if selected:
+            cand=root.candidates[i]
+            merges.append((cand["prev_idx"],cand["cont_idx"],cand["prev_idx"]+1))
     merges.sort(key=lambda x:x[0],reverse=True)
-    for prev_idx,cont_idx,excl_idx,add_space in merges:
-        sp=" " if add_space else ""
-        blocks[prev_idx]["text"]+=sp+blocks[cont_idx]["text"]
+    for prev_idx,cont_idx,excl_idx in merges:
+        blocks[prev_idx]["text"]+=" "+blocks[cont_idx]["text"]
         del blocks[excl_idx:cont_idx+1]
     save_path=filedialog.asksaveasfilename(title="Save merged file",initialfile="merged.json",defaultextension=".json",filetypes=[("JSON Lines","*.json"),("All files","*.*")])
     if not save_path:return
