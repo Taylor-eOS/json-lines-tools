@@ -4,7 +4,8 @@ import re
 import json
 import os
 
-CONTEXT_LENGTH = 30
+CONTEXT_LENGTH = 27
+FILTER_YEARS = False
 
 def to_bold(num_str):
     bold_digits = {'0': '𝟎', '1': '𝟏', '2': '𝟐', '3': '𝟑', '4': '𝟒', '5': '𝟓',
@@ -15,7 +16,7 @@ class FootnoteSelector(tk.Tk):
     def __init__(self):
         super().__init__()
         self.title("Footnote Reference Selector")
-        self.geometry("900x600")
+        self.geometry("740x700")
         self.filename = "input.json"
         self.blocks = []
         self.tokens = []
@@ -24,24 +25,31 @@ class FootnoteSelector(tk.Tk):
         self.create_widgets()
 
     def load_file(self):
+        self.blocks = []
         try:
-            self.blocks = []
             with open(self.filename, "r", encoding="utf-8") as f:
                 for line in f:
-                    if line.strip():
-                        self.blocks.append(json.loads(line))
+                    if not line.strip():
+                        continue
+                    block = json.loads(line)
+                    self.blocks.append(block)
         except Exception as e:
             messagebox.showerror("File Error", f"Could not load {self.filename}:\n{e}")
             self.blocks = []
 
     def is_year(self, text):
-        return bool(re.match(r"^(19[0-9]\d|20[0-9]\d|18[0-9]\d)$", text))
+        if FILTER_YEARS:
+            return bool(re.match(r"^(19[0-9]\d|20[0-9]\d|18[0-9]\d)$", text))
+        else:
+            return False
 
     def extract_tokens(self):
         self.tokens = []
         pattern = re.compile(r"\d+")
         forbidden = [" Millionen", " million", " Prozent", " percent", " pro", " 000", "000"]
         for block_idx, block in enumerate(self.blocks):
+            if block.get("label") == "exclude":
+                continue
             if block.get("label") in ["h1", "h2", "h3"]:
                 continue
             text = block.get("text", "")
