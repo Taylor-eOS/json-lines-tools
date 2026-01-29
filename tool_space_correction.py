@@ -52,35 +52,32 @@ def tokenize_line(line):
         result.append(current)
     return result
 
-def check_word_status(w1, w2, wordlist):
+def check_word_status_extended(tokens, i, wordlist):
+    w1 = tokens[i]
+    w2 = tokens[i + 1]
     w1l = w1.lower()
     w2l = w2.lower()
     merged = w1l + w2l
+    w_before = tokens[i - 1].lower() if i > 0 and tokens[i - 1] != ',' else None
+    w_after = tokens[i + 2].lower() if i + 2 < len(tokens) and tokens[i + 2] != ',' else None
+    merged_before = (w_before + w1l) if w_before else None
+    merged_after = (w2l + w_after) if w_after else None
     return {
-        'w1_valid': w1l in wordlist,
-        'w2_valid': w2l in wordlist,
-        'merged_valid': merged in wordlist,
         'w1l': w1l,
-        'w2l': w2l}
+        'w2l': w2l,
+        'merged_valid': merged in wordlist,
+        'merged_before_valid': merged_before in wordlist if merged_before else False,
+        'merged_after_valid': merged_after in wordlist if merged_after else False
+    }
 
 def determine_auto_decision(status):
-    w1_valid = status['w1_valid']
-    w2_valid = status['w2_valid']
     merged_valid = status['merged_valid']
-    if w1_valid and w2_valid and not merged_valid:
+    merged_before_valid = status['merged_before_valid']
+    merged_after_valid = status['merged_after_valid']
+    if merged_valid and not merged_before_valid and not merged_after_valid:
+        return "merge"
+    if not merged_valid and not merged_before_valid and not merged_after_valid:
         return "keep"
-    if not w1_valid and not w2_valid and merged_valid:
-        return "merge"
-    if merged_valid and not w1_valid and not w2_valid:
-        return "merge"
-    if w1_valid and w2_valid and merged_valid:
-        return None
-    if not w1_valid and not w2_valid and not merged_valid:
-        return None
-    if (w1_valid or w2_valid) and merged_valid:
-        return None
-    if (w1_valid or w2_valid) and not merged_valid:
-        return None
     return None
 
 def find_all_pairs(lines, wordlist):
@@ -94,7 +91,7 @@ def find_all_pairs(lines, wordlist):
             w2 = tokens[i + 1]
             if w1 == ',' or w2 == ',':
                 continue
-            status = check_word_status(w1, w2, wordlist)
+            status = check_word_status_extended(tokens, i, wordlist)
             key = (status['w1l'], status['w2l'])
             auto_decision = determine_auto_decision(status)
             if auto_decision is not None:
