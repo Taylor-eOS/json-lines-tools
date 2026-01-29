@@ -52,8 +52,38 @@ def tokenize_line(line):
         result.append(current)
     return result
 
+def check_word_status(w1, w2, wordlist):
+    w1l = w1.lower()
+    w2l = w2.lower()
+    merged = w1l + w2l
+    return {
+        'w1_valid': w1l in wordlist,
+        'w2_valid': w2l in wordlist,
+        'merged_valid': merged in wordlist,
+        'w1l': w1l,
+        'w2l': w2l}
+
+def determine_auto_decision(status):
+    w1_valid = status['w1_valid']
+    w2_valid = status['w2_valid']
+    merged_valid = status['merged_valid']
+    if w1_valid and w2_valid and not merged_valid:
+        return "keep"
+    if not w1_valid and not w2_valid and merged_valid:
+        return "merge"
+    if merged_valid and not w1_valid and not w2_valid:
+        return "merge"
+    if w1_valid and w2_valid and merged_valid:
+        return None
+    if not w1_valid and not w2_valid and not merged_valid:
+        return None
+    if (w1_valid or w2_valid) and merged_valid:
+        return None
+    if (w1_valid or w2_valid) and not merged_valid:
+        return None
+    return None
+
 def find_all_pairs(lines, wordlist):
-    wl = wordlist
     candidates = {}
     auto_decisions = {}
     for line in lines:
@@ -64,18 +94,12 @@ def find_all_pairs(lines, wordlist):
             w2 = tokens[i + 1]
             if w1 == ',' or w2 == ',':
                 continue
-            w1l = w1.lower()
-            w2l = w2.lower()
-            merge_word = w1l + w2l
-            w1_is_word = w1l in wl
-            w2_is_word = w2l in wl
-            merge_is_word = merge_word in wl
-            key = (w1l, w2l)
-            if w1_is_word and w2_is_word and not merge_is_word:
-                auto_decisions[key] = "keep"
-            elif not w1_is_word and not w2_is_word and not merge_is_word:
-                auto_decisions[key] = "merge"
-            elif key not in auto_decisions:
+            status = check_word_status(w1, w2, wordlist)
+            key = (status['w1l'], status['w2l'])
+            auto_decision = determine_auto_decision(status)
+            if auto_decision is not None:
+                auto_decisions[key] = auto_decision
+            else:
                 if key not in candidates:
                     context = get_context(tokens, i, i + 2)
                     candidates[key] = {
