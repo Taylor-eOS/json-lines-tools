@@ -23,39 +23,40 @@ def read_input():
     )
     root.destroy()
     if not path:
-        sys.exit(0)
+        return None, None
     with open(path, "r", encoding="utf-8") as f:
         return f.read(), path
 
-def get_context(tokens, start, end, width=10):
+def get_context(tokens, start, end, width=15):
     start_idx = max(0, start - width)
     end_idx = min(len(tokens), end + width)
     return ' '.join(tokens[start_idx:end_idx])
 
-def find_all_candidates(lines, wordlist, max_seq):
-    all_candidates = {}
-    for line_idx, line in enumerate(lines):
+def find_suspicious_pairs(lines, wordlist):
+    candidates = {}
+    for line in lines:
         tokens = line.split()
-        for length in range(max_seq, 1, -1):
-            for i in range(len(tokens) - length + 1):
-                seq_tokens = tokens[i:i+length]
-                if all(t.isalpha() for t in seq_tokens):
-                    joined = ''.join(seq_tokens).lower()
-                    if joined in wordlist and not all(t.lower() in wordlist for t in seq_tokens):
-                        seq_key = tuple(t.lower() for t in seq_tokens)
-                        if seq_key not in all_candidates:
-                            all_candidates[seq_key] = {
-                                'seq_tokens': seq_tokens,
-                                'joined': joined,
-                                'context': get_context(tokens, i, i+length),
-                                'count': 0
-                            }
-                        all_candidates[seq_key]['count'] += 1
-    return all_candidates
+        for i in range(len(tokens) - 1):
+            left = tokens[i]
+            right = tokens[i + 1]
+            if left.isalpha() and right.isalpha():
+                l_lower = left.lower()
+                r_lower = right.lower()
+                if not (l_lower in wordlist and r_lower in wordlist):
+                    key = (l_lower, r_lower)
+                    if key not in candidates:
+                        candidates[key] = {
+                            'seq_tokens': [left, right],
+                            'joined': left + right,
+                            'context': get_context(tokens, i, i + 2),
+                            'count': 0
+                        }
+                    candidates[key]['count'] += 1
+    return candidates
 
 def ask_user(candidate_info, stats):
     root = tk.Tk()
-    root.title("OCR Space Correction")
+    root.title("Space Correction")
     decision = tk.StringVar()
     seq_tokens = candidate_info['seq_tokens']
     joined = candidate_info['joined']
@@ -66,7 +67,7 @@ def ask_user(candidate_info, stats):
     tk.Label(root, text=f"Found {count} occurrence(s)", font=("Arial", 12, "bold")).pack(pady=5)
     tk.Label(root, text=f"Separate: {' '.join(seq_tokens)}", font=("Arial", 14)).pack(pady=5)
     tk.Label(root, text=f"Joined: {joined}", font=("Arial", 14)).pack(pady=5)
-    tk.Label(root, text="Context (first occurrence):", font=("Arial", 12)).pack()
+    tk.Label(root, text="Context:", font=("Arial", 12)).pack()
     tk.Label(root, text=context, wraplength=750, justify="left", font=("Arial", 11)).pack(pady=10)
     def resolve(value):
         stats["confirmed"] += 1
@@ -74,58 +75,68 @@ def ask_user(candidate_info, stats):
         stats_label.config(text=f"Total: {stats['total']}   Confirmed: {stats['confirmed']}   Remaining: {stats['remaining']}")
         decision.set(value)
         root.after(150, root.destroy)
-    tk.Button(root, text=f"Join ALL {count} occurrence(s)", width=30, command=lambda: resolve("merge")).pack(pady=5)
-    tk.Button(root, text="Keep spaces", width=30, command=lambda: resolve("keep")).pack(pady=5)
-    tk.Button(root, text="Quit program", width=30, command=lambda: sys.exit(0)).pack(pady=15)
-    root.geometry("850x550")
+    tk.Button(root, text=f"Join {count}", width=30, command=lambda: resolve("merge")).pack(pady=5)
+    tk.Button(root, text="Keep separate", width=30, command=lambda: resolve("keep")).pack(pady=5)
+    tk.Button(root, text="Quit", width=30, command=lambda: sys.exit(0)).pack(pady=15)
+    root.geometry("900x600")
     root.mainloop()
     return decision.get()
 
-def apply_decisions(lines, decisions):
+def apply_decisions(lines, decisions, wordlist):
     new_lines = []
     for line in lines:
         tokens = line.split()
         i = 0
-        new_tokens = []
         while i < len(tokens):
-            matched = False
-            for length in range(4, 1, -1):
-                if i + length <= len(tokens):
-                    seq_tokens = tokens[i:i+length]
-                    if all(t.isalpha() for t in seq_tokens):
-                        seq_key = tuple(t.lower() for t in seq_tokens)
-                        if seq_key in decisions and decisions[seq_key] == "merge":
-                            new_tokens.append(''.join(seq_tokens))
-                            i += length
-                            matched = True
-                            break
-            if not matched:
-                new_tokens.append(tokens[i])
-                i += 1
-        new_lines.append(' '.join(new_tokens))
+            if i + 1 < len(tokens):
+                left = tokens[i]
+                right = tokens[i + 1]
+                if left.isalpha() and right.isalpha():
+                    l_lower = left.lower()
+                    r_lower = right.lower()
+                    key = (l_lower, r_lower)
+                    joined = left + right
+                    joined_lower = joined.lower()
+                    merge = False
+                    if key in decisions:
+                        if decisions[key] == "merge":
+                            merge = True
+                    if joined_lower in wordlist and not (l_lower in wordlist and r_lower in wordlist):
+                        merge = True
+                    if merge:
+                        tokens[i] = joined
+                        del tokens[i + 1]
+                        continue
+            i += 1
+        new_lines.append(' '.join(tokens))
     return new_lines
 
-def process_text(lines, wordlist, max_seq=4):
-    candidates = find_all_candidates(lines, wordlist, max_seq)
+def process_text(lines, wordlist):
+    candidates = find_suspicious_pairs(lines, wordlist)
+    items = sorted(candidates.items(), key=lambda item: item[1]['count'], reverse=True)
     stats = {"total": len(candidates), "confirmed": 0, "remaining": len(candidates)}
     decisions = {}
-    for seq_key, candidate_info in candidates.items():
+    for seq_key, candidate_info in items:
+        if stats["remaining"] <= 0:
+            break
         dec = ask_user(candidate_info, stats)
         decisions[seq_key] = dec
-    return apply_decisions(lines, decisions)
+    return apply_decisions(lines, decisions, wordlist)
 
 def main():
     wordlist = load_wordlist()
     text, filepath = read_input()
-    if filepath is None:
-        print("No file selected")
+    if text is None:
         sys.exit(0)
     lines = text.splitlines()
-    lines = process_text(lines, wordlist, max_seq=4)
-    base, ext = os.path.splitext(filepath)
-    outpath = f"{base}_corrected{ext}"
-    with open(outpath, "w", encoding="utf-8") as f:
-        f.write('\n'.join(lines))
+    lines = process_text(lines, wordlist)
+    if filepath:
+        base, ext = os.path.splitext(filepath)
+        outpath = f"{base}_corrected{ext}"
+        with open(outpath, "w", encoding="utf-8") as f:
+            f.write('\n'.join(lines))
+    else:
+        sys.stdout.write('\n'.join(lines) + '\n')
 
 if __name__ == "__main__":
     main()
