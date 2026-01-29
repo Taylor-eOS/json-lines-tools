@@ -1,8 +1,9 @@
+import os
 import sys
+import string
 import tkinter as tk
 from tkinter import filedialog
 import nltk
-import os
 
 def load_wordlist():
     try:
@@ -34,25 +35,73 @@ def get_context(tokens, start, end, width=15):
 
 def find_suspicious_pairs(lines, wordlist):
     candidates = {}
+    punctuation = string.punctuation
     for line in lines:
         tokens = line.split()
         for i in range(len(tokens) - 1):
             left = tokens[i]
             right = tokens[i + 1]
-            if left.isalpha() and right.isalpha():
-                l_lower = left.lower()
-                r_lower = right.lower()
-                if not (l_lower in wordlist and r_lower in wordlist):
-                    key = (l_lower, r_lower)
-                    if key not in candidates:
-                        candidates[key] = {
-                            'seq_tokens': [left, right],
-                            'joined': left + right,
-                            'context': get_context(tokens, i, i + 2),
-                            'count': 0
-                        }
-                    candidates[key]['count'] += 1
+            if not left.isalpha():
+                continue
+            right_clean = right.rstrip(punctuation)
+            if not (right_clean.isalpha() and right_clean):
+                continue
+            l_lower = left.lower()
+            r_lower = right_clean.lower()
+            joined_lower = l_lower + r_lower
+            separate_valid = l_lower in wordlist and r_lower in wordlist
+            joined_valid = joined_lower in wordlist
+            if not separate_valid or joined_valid:
+                key = (l_lower, r_lower)
+                if key not in candidates:
+                    candidates[key] = {
+                        'seq_tokens': [left, right],
+                        'joined': left + right_clean,
+                        'context': get_context(tokens, i, i + 2),
+                        'count': 0
+                    }
+                candidates[key]['count'] += 1
     return candidates
+
+def apply_decisions(lines, decisions, wordlist):
+    new_lines = []
+    punctuation = string.punctuation
+    for line in lines:
+        tokens = line.split()
+        changed = True
+        while changed:
+            changed = False
+            i = 0
+            while i < len(tokens) - 1:
+                left = tokens[i]
+                right = tokens[i + 1]
+                if not left.isalpha():
+                    i += 1
+                    continue
+                right_clean = right.rstrip(punctuation)
+                if not (right_clean.isalpha() and right_clean):
+                    i += 1
+                    continue
+                l_lower = left.lower()
+                r_lower = right_clean.lower()
+                joined_lower = l_lower + r_lower
+                key = (l_lower, r_lower)
+                merge = False
+                if key in decisions and decisions[key] == "merge":
+                    merge = True
+                if joined_lower in wordlist and not (l_lower in wordlist and r_lower in wordlist):
+                    merge = True
+                if merge:
+                    tokens[i] = left + right_clean
+                    if right != right_clean:
+                        tokens[i] += right[len(right_clean):]
+                    del tokens[i + 1]
+                    changed = True
+                    i = max(0, i - 1)
+                else:
+                    i += 1
+        new_lines.append(' '.join(tokens))
+    return new_lines
 
 def ask_user(candidate_info, stats):
     root = tk.Tk()
@@ -81,35 +130,6 @@ def ask_user(candidate_info, stats):
     root.geometry("900x600")
     root.mainloop()
     return decision.get()
-
-def apply_decisions(lines, decisions, wordlist):
-    new_lines = []
-    for line in lines:
-        tokens = line.split()
-        i = 0
-        while i < len(tokens):
-            if i + 1 < len(tokens):
-                left = tokens[i]
-                right = tokens[i + 1]
-                if left.isalpha() and right.isalpha():
-                    l_lower = left.lower()
-                    r_lower = right.lower()
-                    key = (l_lower, r_lower)
-                    joined = left + right
-                    joined_lower = joined.lower()
-                    merge = False
-                    if key in decisions:
-                        if decisions[key] == "merge":
-                            merge = True
-                    if joined_lower in wordlist and not (l_lower in wordlist and r_lower in wordlist):
-                        merge = True
-                    if merge:
-                        tokens[i] = joined
-                        del tokens[i + 1]
-                        continue
-            i += 1
-        new_lines.append(' '.join(tokens))
-    return new_lines
 
 def process_text(lines, wordlist):
     candidates = find_suspicious_pairs(lines, wordlist)
