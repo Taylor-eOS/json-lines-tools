@@ -18,10 +18,7 @@ def read_input():
         return sys.stdin.read(), None
     root = tk.Tk()
     root.withdraw()
-    path = filedialog.askopenfilename(
-        title="Select text file",
-        filetypes=[("Text files", "*.txt *.json *.md"), ("All files", "*.*")]
-    )
+    path = filedialog.askopenfilename(title="Select text file", filetypes=[("Text files", "*.txt *.json *.md"), ("All files", "*.*")])
     root.destroy()
     if not path:
         return None, None
@@ -58,10 +55,62 @@ def find_suspicious_pairs(lines, wordlist):
                         'seq_tokens': [left, right],
                         'joined': left + right_clean,
                         'context': get_context(tokens, i, i + 2),
-                        'count': 0
-                    }
+                        'count': 0}
                 candidates[key]['count'] += 1
     return candidates
+
+def ask_user(candidate_info, stats):
+    root = tk.Tk()
+    root.title("Space Correction")
+    decision = tk.StringVar()
+    seq_tokens = candidate_info['seq_tokens']
+    joined = candidate_info['joined']
+    context = candidate_info['context']
+    count = candidate_info['count']
+    stats_label = tk.Label(root, text=f"Total: {stats['total']}   Confirmed: {stats['confirmed']}   Remaining: {stats['remaining']}", font=("Arial", 11))
+    stats_label.pack(pady=10)
+    tk.Label(root, text=f"Found {count} occurrence(s)", font=("Arial", 12, "bold")).pack(pady=5)
+    tk.Label(root, text=f"Separate: {' '.join(seq_tokens)}", font=("Arial", 14)).pack(pady=5)
+    tk.Label(root, text=f"Joined: {joined}", font=("Arial", 14)).pack(pady=5)
+    tk.Label(root, text="", font=("Arial", 12)).pack()
+    text_widget = tk.Text(root, wrap="word", font=("Arial", 11), height=6, width=90, padx=8, pady=8, bg=root.cget("bg"), relief="flat", highlightthickness=0)
+    text_widget.pack(pady=10, padx=20, fill="x")
+    text_widget.insert("1.0", context)
+    text_widget.config(state="disabled")
+    target_phrase = seq_tokens[0] + " " + seq_tokens[1]
+    start_idx = context.find(target_phrase)
+    if start_idx != -1:
+        start = f"1.0 + {start_idx} chars"
+        end = f"1.0 + {start_idx + len(target_phrase)} chars"
+        text_widget.tag_add("redpair", start, end)
+        text_widget.tag_config("redpair", foreground="red")
+    else:
+        pos = 0
+        for token in seq_tokens:
+            pos = context.find(token, pos)
+            if pos != -1:
+                start = f"1.0 + {pos} chars"
+                end = f"1.0 + {pos + len(token)} chars"
+                text_widget.tag_add("redpair", start, end)
+                pos += len(token)
+    def resolve(value):
+        stats["confirmed"] += 1
+        stats["remaining"] -= 1
+        stats_label.config(text=f"Total: {stats['total']}   Confirmed: {stats['confirmed']}   Remaining: {stats['remaining']}")
+        decision.set(value)
+        root.after(150, root.destroy)
+    def on_key(event):
+        if event.char == "j":
+            resolve("merge")
+        elif event.char == "k":
+            resolve("keep")
+    tk.Button(root, text="Join", width=30, command=lambda: resolve("merge")).pack(pady=5)
+    tk.Button(root, text="Keep separate", width=30, command=lambda: resolve("keep")).pack(pady=5)
+    tk.Button(root, text="Quit", width=30, command=lambda: sys.exit(0)).pack(pady=15)
+    root.bind("<Key>", on_key)
+    root.geometry("900x600")
+    root.mainloop()
+    return decision.get()
 
 def apply_decisions(lines, decisions, wordlist):
     new_lines = []
@@ -103,34 +152,6 @@ def apply_decisions(lines, decisions, wordlist):
         new_lines.append(' '.join(tokens))
     return new_lines
 
-def ask_user(candidate_info, stats):
-    root = tk.Tk()
-    root.title("Space Correction")
-    decision = tk.StringVar()
-    seq_tokens = candidate_info['seq_tokens']
-    joined = candidate_info['joined']
-    context = candidate_info['context']
-    count = candidate_info['count']
-    stats_label = tk.Label(root, text=f"Total: {stats['total']}   Confirmed: {stats['confirmed']}   Remaining: {stats['remaining']}", font=("Arial", 11))
-    stats_label.pack(pady=10)
-    tk.Label(root, text=f"Found {count} occurrence(s)", font=("Arial", 12, "bold")).pack(pady=5)
-    tk.Label(root, text=f"Separate: {' '.join(seq_tokens)}", font=("Arial", 14)).pack(pady=5)
-    tk.Label(root, text=f"Joined: {joined}", font=("Arial", 14)).pack(pady=5)
-    tk.Label(root, text="Context:", font=("Arial", 12)).pack()
-    tk.Label(root, text=context, wraplength=750, justify="left", font=("Arial", 11)).pack(pady=10)
-    def resolve(value):
-        stats["confirmed"] += 1
-        stats["remaining"] -= 1
-        stats_label.config(text=f"Total: {stats['total']}   Confirmed: {stats['confirmed']}   Remaining: {stats['remaining']}")
-        decision.set(value)
-        root.after(150, root.destroy)
-    tk.Button(root, text=f"Join {count}", width=30, command=lambda: resolve("merge")).pack(pady=5)
-    tk.Button(root, text="Keep separate", width=30, command=lambda: resolve("keep")).pack(pady=5)
-    tk.Button(root, text="Quit", width=30, command=lambda: sys.exit(0)).pack(pady=15)
-    root.geometry("900x600")
-    root.mainloop()
-    return decision.get()
-
 def process_text(lines, wordlist):
     candidates = find_suspicious_pairs(lines, wordlist)
     items = sorted(candidates.items(), key=lambda item: item[1]['count'], reverse=True)
@@ -152,7 +173,7 @@ def main():
     lines = process_text(lines, wordlist)
     if filepath:
         base, ext = os.path.splitext(filepath)
-        outpath = f"{base}_corrected{ext}"
+        outpath = f"output{ext}"
         with open(outpath, "w", encoding="utf-8") as f:
             f.write('\n'.join(lines))
     else:
@@ -160,3 +181,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
