@@ -11,7 +11,10 @@ def load_wordlist():
     except LookupError:
         nltk.download('words', quiet=True)
     from nltk.corpus import words
-    return set(w.lower() for w in words.words() if w.isalpha())
+    wl = set(w.lower() for w in words.words() if w.isalpha())
+    common_words = {'the', 'a', 'an', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for', 'of', 'with', 'by', 'from', 'as', 'is', 'was', 'are', 'were', 'be', 'been', 'have', 'has', 'had', 'do', 'does', 'did', 'will', 'would', 'could', 'should', 'may', 'might', 'can', 'it', 'its', 'this', 'that', 'these', 'those', 'i', 'you', 'he', 'she', 'we', 'they', 'them', 'their', 'my', 'your', 'his', 'her', 'our'}
+    wl.update(common_words)
+    return wl
 
 def read_input():
     if not sys.stdin.isatty():
@@ -30,34 +33,91 @@ def get_context(tokens, start, end, width=15):
     end_idx = min(len(tokens), end + width)
     return ' '.join(tokens[start_idx:end_idx])
 
-def find_suspicious_pairs(lines, wordlist):
+def tokenize_line(line):
+    result = []
+    current = ""
+    for char in line:
+        if char == ',':
+            if current:
+                result.append(current)
+                current = ""
+            result.append(',')
+        elif char == ' ':
+            if current:
+                result.append(current)
+                current = ""
+        else:
+            current += char
+    if current:
+        result.append(current)
+    return result
+
+def find_all_pairs(lines, wordlist):
+    wl = wordlist
     candidates = {}
-    punctuation = string.punctuation
+    auto_decisions = {}
     for line in lines:
-        tokens = line.split()
-        for i in range(len(tokens) - 1):
-            left = tokens[i]
-            right = tokens[i + 1]
-            if not left.isalpha():
+        tokens = tokenize_line(line)
+        n = len(tokens)
+        for i in range(n - 1):
+            w1 = tokens[i]
+            w2 = tokens[i + 1]
+            if w1 == ',' or w2 == ',':
                 continue
-            right_clean = right.rstrip(punctuation)
-            if not (right_clean.isalpha() and right_clean):
-                continue
-            l_lower = left.lower()
-            r_lower = right_clean.lower()
-            joined_lower = l_lower + r_lower
-            separate_valid = l_lower in wordlist and r_lower in wordlist
-            joined_valid = joined_lower in wordlist
-            if not separate_valid or joined_valid:
-                key = (l_lower, r_lower)
+            w1l = w1.lower()
+            w2l = w2.lower()
+            merge_word = w1l + w2l
+            w1_is_word = w1l in wl
+            w2_is_word = w2l in wl
+            merge_is_word = merge_word in wl
+            key = (w1l, w2l)
+            if w1_is_word and w2_is_word and not merge_is_word:
+                auto_decisions[key] = "keep"
+            elif not w1_is_word and not w2_is_word and not merge_is_word:
+                auto_decisions[key] = "merge"
+            elif key not in auto_decisions:
                 if key not in candidates:
+                    context = get_context(tokens, i, i + 2)
                     candidates[key] = {
-                        'seq_tokens': [left, right],
-                        'joined': left + right_clean,
-                        'context': get_context(tokens, i, i + 2),
-                        'count': 0}
-                candidates[key]['count'] += 1
-    return candidates
+                        "seq_tokens": [w1, w2],
+                        "joined": w1 + w2,
+                        "context": context,
+                        "count": 0
+                    }
+                candidates[key]["count"] += 1
+    return candidates, auto_decisions
+
+def apply_decisions(lines, decisions):
+    new_lines = []
+    for line in lines:
+        tokens = tokenize_line(line)
+        i = 0
+        new_tokens = []
+        while i < len(tokens):
+            if tokens[i] == ',':
+                new_tokens.append(',')
+                i += 1
+                continue
+            if i < len(tokens) - 1 and tokens[i + 1] != ',':
+                key = (tokens[i].lower(), tokens[i + 1].lower())
+                if key in decisions and decisions[key] == "merge":
+                    new_tokens.append(tokens[i] + tokens[i + 1])
+                    i += 2
+                    continue
+            new_tokens.append(tokens[i])
+            i += 1
+        result = ""
+        for j in range(len(new_tokens)):
+            if new_tokens[j] == ',':
+                result += ','
+                if j < len(new_tokens) - 1:
+                    result += ' '
+            else:
+                if j > 0 and new_tokens[j - 1] != ',':
+                    result += ' '
+                result += new_tokens[j]
+        new_lines.append(result)
+    return new_lines
 
 def ask_user(candidate_info, stats):
     root = tk.Tk()
@@ -70,11 +130,8 @@ def ask_user(candidate_info, stats):
     stats_label = tk.Label(root, text=f"Total: {stats['total']}   Confirmed: {stats['confirmed']}   Remaining: {stats['remaining']}", font=("Arial", 11))
     stats_label.pack(pady=10)
     tk.Label(root, text=f"Found {count} occurrence(s)", font=("Arial", 12, "bold")).pack(pady=5)
-    tk.Label(root, text=f"Separate: {' '.join(seq_tokens)}", font=("Arial", 14)).pack(pady=5)
-    tk.Label(root, text=f"Joined: {joined}", font=("Arial", 14)).pack(pady=5)
-    tk.Label(root, text="", font=("Arial", 12)).pack()
-    text_widget = tk.Text(root, wrap="word", font=("Arial", 11), height=6, width=90, padx=8, pady=8, bg=root.cget("bg"), relief="flat", highlightthickness=0)
-    text_widget.pack(pady=10, padx=20, fill="x")
+    text_widget = tk.Text(root, wrap="word", font=("Arial", 16), height=8, width=90, padx=15, pady=15, bg=root.cget("bg"), relief="flat", highlightthickness=0)
+    text_widget.pack(pady=20, padx=20, fill="both", expand=True)
     text_widget.insert("1.0", context)
     text_widget.config(state="disabled")
     target_phrase = seq_tokens[0] + " " + seq_tokens[1]
@@ -83,7 +140,7 @@ def ask_user(candidate_info, stats):
         start = f"1.0 + {start_idx} chars"
         end = f"1.0 + {start_idx + len(target_phrase)} chars"
         text_widget.tag_add("redpair", start, end)
-        text_widget.tag_config("redpair", foreground="red")
+        text_widget.tag_config("redpair", foreground="red", font=("Arial", 16, "bold"))
     else:
         pos = 0
         for token in seq_tokens:
@@ -93,6 +150,7 @@ def ask_user(candidate_info, stats):
                 end = f"1.0 + {pos + len(token)} chars"
                 text_widget.tag_add("redpair", start, end)
                 pos += len(token)
+        text_widget.tag_config("redpair", foreground="red", font=("Arial", 16, "bold"))
     def resolve(value):
         stats["confirmed"] += 1
         stats["remaining"] -= 1
@@ -112,57 +170,20 @@ def ask_user(candidate_info, stats):
     root.mainloop()
     return decision.get()
 
-def apply_decisions(lines, decisions, wordlist):
-    new_lines = []
-    punctuation = string.punctuation
-    for line in lines:
-        tokens = line.split()
-        changed = True
-        while changed:
-            changed = False
-            i = 0
-            while i < len(tokens) - 1:
-                left = tokens[i]
-                right = tokens[i + 1]
-                if not left.isalpha():
-                    i += 1
-                    continue
-                right_clean = right.rstrip(punctuation)
-                if not (right_clean.isalpha() and right_clean):
-                    i += 1
-                    continue
-                l_lower = left.lower()
-                r_lower = right_clean.lower()
-                joined_lower = l_lower + r_lower
-                key = (l_lower, r_lower)
-                merge = False
-                if key in decisions and decisions[key] == "merge":
-                    merge = True
-                if joined_lower in wordlist and not (l_lower in wordlist and r_lower in wordlist):
-                    merge = True
-                if merge:
-                    tokens[i] = left + right_clean
-                    if right != right_clean:
-                        tokens[i] += right[len(right_clean):]
-                    del tokens[i + 1]
-                    changed = True
-                    i = max(0, i - 1)
-                else:
-                    i += 1
-        new_lines.append(' '.join(tokens))
-    return new_lines
-
 def process_text(lines, wordlist):
-    candidates = find_suspicious_pairs(lines, wordlist)
+    candidates, auto_decisions = find_all_pairs(lines, wordlist)
     items = sorted(candidates.items(), key=lambda item: item[1]['count'], reverse=True)
     stats = {"total": len(candidates), "confirmed": 0, "remaining": len(candidates)}
-    decisions = {}
+    user_decisions = {}
     for seq_key, candidate_info in items:
         if stats["remaining"] <= 0:
             break
         dec = ask_user(candidate_info, stats)
-        decisions[seq_key] = dec
-    return apply_decisions(lines, decisions, wordlist)
+        user_decisions[seq_key] = dec
+    all_decisions = {}
+    all_decisions.update(auto_decisions)
+    all_decisions.update(user_decisions)
+    return apply_decisions(lines, all_decisions)
 
 def main():
     wordlist = load_wordlist()
@@ -181,4 +202,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
