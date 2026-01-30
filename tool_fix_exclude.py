@@ -27,8 +27,8 @@ def main():
     list_frame.pack(fill="both", expand=True, pady=10)
     row_widgets = []
 
-    def set_row_state(row, add_space):
-        bg = "#d0e6ff" if add_space else root.cget("bg")
+    def set_row_state(row, will_merge_with_space):
+        bg = "#d0e6ff" if will_merge_with_space else root.cget("bg")
         row.configure(bg=bg)
         for w in row.winfo_children():
             w.configure(bg=bg)
@@ -101,7 +101,7 @@ def main():
             return
         root.blocks = blocks
         root.candidates = candidates
-        root.selections = [False] * len(candidates)
+        root.selections = [True] * len(candidates)
         root.offset = 0
         refresh_page()
 
@@ -144,9 +144,9 @@ def save_all(root):
         return
     blocks = root.blocks[:]
     merges = []
-    for i, add_space in enumerate(root.selections):
+    for i, merge_with_space in enumerate(root.selections):
         cand = root.candidates[i]
-        sp = " " if add_space else ""
+        sp = " " if merge_with_space else ""
         merges.append((cand["prev_idx"], cand["cont_idx"], cand["excl_idx"], sp))
     merges.sort(key=lambda x: x[0], reverse=True)
     for prev_idx, cont_idx, excl_idx, sp in merges:
