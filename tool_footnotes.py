@@ -89,8 +89,8 @@ class FootnoteSelector(tk.Tk):
         button_frame.pack(fill=tk.X, padx=10, pady=5)
         process_button = tk.Button(button_frame, text="Apply <sup> Tags", command=self.apply_sup_tags)
         process_button.pack(side=tk.LEFT, padx=5)
-        reload_button = tk.Button(button_frame, text="Reload File", command=self.reload_file)
-        reload_button.pack(side=tk.LEFT, padx=5)
+        #reload_button = tk.Button(button_frame, text="Reload File", command=self.reload_file)
+        #reload_button.pack(side=tk.LEFT, padx=5)
         quit_button = tk.Button(button_frame, text="Quit", command=self.destroy)
         quit_button.pack(side=tk.RIGHT, padx=5)
 
