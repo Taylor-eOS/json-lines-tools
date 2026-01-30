@@ -191,10 +191,13 @@ def save_all(root):
             continue
         if block_meta["action"] == "merge_target":
             merged_text = block_meta["data"]["text"]
-            separator = " " if block_meta.get("use_space", True) else ""
+            use_space = block_meta.get("use_space", True)
             for source_pos in block_meta["merge_sources"]:
                 source_text = root.original_blocks[source_pos].get("text", "")
-                merged_text = merged_text + separator + source_text
+                if not use_space and merged_text.endswith("-"):
+                    merged_text = merged_text[:-1] + source_text
+                else:
+                    merged_text = merged_text + (" " if use_space else "") + source_text
             result_block = dict(block_meta["data"])
             result_block["text"] = merged_text
             final_blocks.append(result_block)
