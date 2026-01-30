@@ -7,7 +7,7 @@ ROWS = 8
 def main():
     root = tk.Tk()
     root.title("JSON Paragraph Merge Tool")
-    root.geometry("1100x620")
+    root.geometry("1100x645")
     root.blocks = None
     root.candidates = None
     root.selections = []
@@ -23,44 +23,49 @@ def main():
     main_frame.pack(fill="both", expand=True)
     info_label = ttk.Label(main_frame, text="", wraplength=900, justify="left", font=("Sans", 10))
     info_label.pack(pady=8)
-    legend_label = ttk.Label(main_frame, text="Normal background: merge without space. Light blue background: merge with one space. Click row to toggle.", wraplength=900, justify="left", font=("Sans", 9))
-    legend_label.pack(pady=4)
     list_frame = ttk.Frame(main_frame)
     list_frame.pack(fill="both", expand=True, pady=10)
     row_widgets = []
+
     def set_row_state(row, add_space):
         bg = "#d0e6ff" if add_space else root.cget("bg")
         row.configure(bg=bg)
         for w in row.winfo_children():
             w.configure(bg=bg)
-    for _ in range(ROWS):
+
+    for row_idx in range(ROWS):
         row = tk.Frame(list_frame, bd=1, relief="solid", padx=8, pady=6)
         row.pack(fill="x", pady=4)
-        var = tk.BooleanVar(value=False)
         left = tk.Label(row, text="", font=("Monospace", 11), anchor="e", width=40)
         left.pack(side="left")
         mid = tk.Label(row, text="•", font=("Monospace", 14, "bold"), fg="red", width=3)
         mid.pack(side="left")
         right = tk.Label(row, text="", font=("Monospace", 11), anchor="w", width=40)
         right.pack(side="left")
-        def make_toggle(v, r):
+
+        def make_toggle(local_row):
             def toggle(e=None):
-                v.set(not v.get())
-                set_row_state(r, v.get())
+                idx = root.offset + local_row
+                if idx < len(root.selections):
+                    root.selections[idx] = not root.selections[idx]
+                    set_row_state(row_widgets[local_row][0], root.selections[idx])
             return toggle
-        toggle_fn = make_toggle(var, row)
+
+        toggle_fn = make_toggle(row_idx)
         row.bind("<Button-1>", toggle_fn)
         left.bind("<Button-1>", toggle_fn)
         mid.bind("<Button-1>", toggle_fn)
         right.bind("<Button-1>", toggle_fn)
-        row_widgets.append((row, left, mid, right, var))
+        row_widgets.append((row, left, mid, right))
     root.row_widgets = row_widgets
+
     nav_frame = ttk.Frame(main_frame)
     nav_frame.pack(pady=12)
     btn_prev = ttk.Button(nav_frame, text="Previous", width=16)
     btn_prev.pack(side="left", padx=15)
     btn_next = ttk.Button(nav_frame, text="Next", width=16)
     btn_next.pack(side="left", padx=15)
+
     def load_file():
         try:
             with open("input.json", "r", encoding="utf-8") as f:
@@ -99,45 +104,36 @@ def main():
         root.selections = [False] * len(candidates)
         root.offset = 0
         refresh_page()
+
     def refresh_page():
         total = len(root.candidates)
         start = root.offset
         end = min(start + ROWS, total)
         info_label.config(text=f"Showing {start + 1}–{end} of {total}")
         for i in range(ROWS):
-            row, left, mid, right, var = root.row_widgets[i]
+            row, left, mid, right = root.row_widgets[i]
             idx = start + i
             if idx < total:
                 cand = root.candidates[idx]
                 prev = root.blocks[cand["prev_idx"]]["text"]
                 cont = root.blocks[cand["cont_idx"]]["text"]
-                left_part = prev[-38:] if len(prev) >= 38 else prev
-                right_part = cont[:38] if len(cont) >= 38 else cont
-                left.config(text=left_part)
-                right.config(text=right_part)
-                var.set(root.selections[idx])
-                set_row_state(row, var.get())
+                left.config(text=prev[-38:])
+                right.config(text=cont[:38])
+                set_row_state(row, root.selections[idx])
                 row.pack(fill="x", pady=4)
             else:
                 row.pack_forget()
+
     def go_next():
         start = root.offset
-        for i in range(ROWS):
-            idx = start + i
-            if idx < len(root.selections):
-                root.selections[idx] = root.row_widgets[i][4].get()
-        if root.offset + ROWS < len(root.candidates):
-            root.offset += ROWS
-            refresh_page()
+        end = min(start + ROWS, len(root.selections))
+        root.offset += ROWS if root.offset + ROWS < len(root.candidates) else 0
+        refresh_page()
+
     def go_prev():
-        start = root.offset
-        for i in range(ROWS):
-            idx = start + i
-            if idx < len(root.selections):
-                root.selections[idx] = root.row_widgets[i][4].get()
-        if root.offset - ROWS >= 0:
-            root.offset -= ROWS
-            refresh_page()
+        root.offset -= ROWS if root.offset - ROWS >= 0 else 0
+        refresh_page()
+
     btn_next.config(command=go_next)
     btn_prev.config(command=go_prev)
     load_file()
@@ -146,11 +142,6 @@ def main():
 def save_all(root):
     if not root.blocks or not root.candidates:
         return
-    start = root.offset
-    for i in range(ROWS):
-        idx = start + i
-        if idx < len(root.selections):
-            root.selections[idx] = root.row_widgets[i][4].get()
     blocks = root.blocks[:]
     merges = []
     for i, add_space in enumerate(root.selections):
@@ -175,3 +166,4 @@ def save_all(root):
 
 if __name__ == "__main__":
     main()
+
