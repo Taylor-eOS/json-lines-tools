@@ -122,7 +122,7 @@ def find_all_merge_groups(blocks):
         group = try_find_merge_group_at(blocks, position)
         if group:
             merge_groups.append(group)
-            position = group["end_index"] + 1
+            position = group["start_index"] + 1
         else:
             position += 1
     return merge_groups
@@ -143,10 +143,14 @@ def try_find_merge_group_at(blocks, start_pos):
             continue
         if current_block.get("label") == "p":
             text_content = current_block.get("text", "")
-            if text_content and len(text_content) > 0 and text_content[0].islower():
-                paragraph_indices.append(current_pos)
-                current_pos += 1
-                continue
+            if text_content and len(text_content) > 0:
+                first_char = text_content[0]
+                if first_char.islower():
+                    paragraph_indices.append(current_pos)
+                    break
+                if first_char == '“' and len(text_content) > 1 and text_content[1].islower():
+                    paragraph_indices.append(current_pos)
+                    break
         break
     if len(paragraph_indices) < 2:
         return None
