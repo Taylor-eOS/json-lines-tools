@@ -14,10 +14,11 @@ def to_bold(num_str):
 
 class FootnoteSelector(tk.Tk):
     def __init__(self):
+        filename = input("Input file: ") or 'input.json'
         super().__init__()
         self.title("Footnote Reference Selector")
         self.geometry("740x700")
-        self.filename = "input.json"
+        self.filename = filename
         self.blocks = []
         self.tokens = []
         self.load_file()
@@ -46,7 +47,6 @@ class FootnoteSelector(tk.Tk):
     def extract_tokens(self):
         self.tokens = []
         pattern = re.compile(r"\d+")
-        forbidden = [" Millionen", " million", " Prozent", " percent", " pro", " 000", "000"]
         for block_idx, block in enumerate(self.blocks):
             if block.get("label") == "exclude":
                 continue
@@ -58,9 +58,6 @@ class FootnoteSelector(tk.Tk):
                 if self.is_year(num_str):
                     continue
                 num_val = int(num_str)
-                following_text = text[m.end():m.end() + CONTEXT_LENGTH]
-                if any(forb in following_text for forb in forbidden):
-                    continue
                 snippet = (text[max(0, m.start() - 33):m.start()] +
                            to_bold(num_str) +
                            text[m.end():min(len(text), m.end() + CONTEXT_LENGTH)])
@@ -183,3 +180,4 @@ class FootnoteSelector(tk.Tk):
 if __name__ == '__main__':
     app = FootnoteSelector()
     app.mainloop()
+
