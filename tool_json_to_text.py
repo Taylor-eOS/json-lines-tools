@@ -4,7 +4,20 @@ import json
 from html import unescape
 
 INPUT_FILE = input("Input file: ") or "input.json"
-OUTPUT_FILE = os.path.splitext(INPUT_FILE)[0] + ".txt"
+base, ext = os.path.splitext(INPUT_FILE)
+if not ext:
+    candidate = INPUT_FILE + ".json"
+    if os.path.isfile(candidate):
+        INPUT_FILE = candidate
+    else:
+        if not os.path.isfile(INPUT_FILE):
+            print(f"Error: Neither '{INPUT_FILE}' nor '{candidate}' exists.")
+            exit(1)
+else:
+    if not os.path.isfile(INPUT_FILE):
+        print(f"Error: File '{INPUT_FILE}' does not exist.")
+        exit(1)
+OUTPUT_FILE = base + ".txt"
 
 def clean_text_block(raw_text):
     if not raw_text:
@@ -13,6 +26,7 @@ def clean_text_block(raw_text):
     text = re.sub(r'<sup[^>]*>.*?</sup>', '', text, flags=re.IGNORECASE|re.DOTALL)
     text = re.sub(r'<[^>]+>', ' ', text)
     text = re.sub(r'\s+', ' ', text).strip()
+    text = re.sub(r'\s+([.!?])', r'\1', text)
     return text
 
 def should_insert_blank_before(label):
