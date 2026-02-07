@@ -8,8 +8,8 @@ CONTEXT_LENGTH = 27
 FILTER_YEARS = False
 
 def to_bold(num_str):
-    bold_digits = {'0': '𝟎', '1': '𝟏', '2': '𝟐', '3': '𝟑', '4': '𝟒', '5': '𝟓',
-                   '6': '𝟔', '7': '𝟕', '8': '𝟖', '9': '𝟗'}
+    bold_digits = {'0':'𝟎','1':'𝟏','2':'𝟐','3':'𝟑','4':'𝟒','5':'𝟓',
+                   '6':'𝟔','7':'𝟕','8':'𝟖','9':'𝟗'}
     return ''.join(bold_digits.get(ch, ch) for ch in num_str)
 
 class FootnoteSelector(tk.Tk):
@@ -89,16 +89,17 @@ class FootnoteSelector(tk.Tk):
         button_frame.pack(fill=tk.X, padx=10, pady=5)
         process_button = tk.Button(button_frame, text="Apply <sup> Tags", command=self.apply_sup_tags)
         process_button.pack(side=tk.LEFT, padx=5)
-        #reload_button = tk.Button(button_frame, text="Reload File", command=self.reload_file)
-        #reload_button.pack(side=tk.LEFT, padx=5)
         quit_button = tk.Button(button_frame, text="Quit", command=self.destroy)
         quit_button.pack(side=tk.RIGHT, padx=5)
 
     def on_click(self, event):
         index = self.listbox.nearest(event.y)
         self.listbox.activate(index)
-        self.listbox.selection_set(index)
-        self.on_selection_change(None)
+        if index in self.listbox.curselection():
+            self.listbox.selection_clear(index)
+        else:
+            self.listbox.selection_set(index)
+            self.on_selection_change(None)
         return "break"
 
     def find_forward_consecutive_indices(self, anchor_index):
