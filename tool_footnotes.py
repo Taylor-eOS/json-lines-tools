@@ -8,8 +8,7 @@ CONTEXT_LENGTH = 27
 FILTER_YEARS = False
 
 def to_bold(num_str):
-    bold_digits = {'0':'𝟎','1':'𝟏','2':'𝟐','3':'𝟑','4':'𝟒','5':'𝟓',
-                   '6':'𝟔','7':'𝟕','8':'𝟖','9':'𝟗'}
+    bold_digits = {'0':'𝟎','1':'𝟏','2':'𝟐','3':'𝟑','4':'𝟒','5':'𝟓','6':'𝟔','7':'𝟕','8':'𝟖','9':'𝟗'}
     return ''.join(bold_digits.get(ch, ch) for ch in num_str)
 
 class FootnoteSelector(tk.Tk):
@@ -95,6 +94,8 @@ class FootnoteSelector(tk.Tk):
     def on_click(self, event):
         index = self.listbox.nearest(event.y)
         self.listbox.activate(index)
+        for i in range(index + 1, len(self.tokens)):
+            self.listbox.selection_clear(i)
         if index in self.listbox.curselection():
             self.listbox.selection_clear(index)
         else:
@@ -181,4 +182,3 @@ class FootnoteSelector(tk.Tk):
 if __name__ == '__main__':
     app = FootnoteSelector()
     app.mainloop()
-
