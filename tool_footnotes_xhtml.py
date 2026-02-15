@@ -46,13 +46,20 @@ class FootnoteXHTMLProcessor(tk.Tk):
         tk.Label(self, textvariable=self.status_var, anchor="w", padx=10).pack(fill=tk.X, pady=(0,4))
 
     def ask_and_load_first_file(self):
-        folder = simpledialog.askstring("Folder path", "Full path to folder with .xhtml files\n(leave empty = current directory):",
-                                        initialvalue=str(Path.cwd()))
-        if not folder:
-            folder = "."
-        self.xhtml_files = sorted(glob.glob(os.path.join(folder, "*.xhtml")))
+        folder = simpledialog.askstring("Folder path", "Full path to folder with .xhtml/.html files\n(leave empty = current directory):")
+        if not folder or not folder.strip():
+            folder = str(Path.cwd())
+        else:
+            folder = folder.strip().rstrip('/').rstrip('\\')
+        if not os.path.isdir(folder):
+            messagebox.showerror("Invalid folder", f"Folder does not exist:\n{folder}")
+            self.destroy()
+            return
+        xhtml_files = glob.glob(os.path.join(folder, "*.xhtml"))
+        html_files = glob.glob(os.path.join(folder, "*.html"))
+        self.xhtml_files = sorted(xhtml_files + html_files)
         if not self.xhtml_files:
-            messagebox.showerror("No files", "No .xhtml files found in the selected folder.")
+            messagebox.showerror("No files", f"No .xhtml or .html files found in:\n{folder}")
             self.destroy()
             return
         self.file_index = 0
@@ -139,6 +146,8 @@ class FootnoteXHTMLProcessor(tk.Tk):
     def on_listbox_click(self, event):
         index = self.listbox.nearest(event.y)
         self.listbox.activate(index)
+        for i in range(index + 1, len(self.tokens)):
+            self.listbox.selection_clear(i)
         if index in self.listbox.curselection():
             self.listbox.selection_clear(index)
         else:
