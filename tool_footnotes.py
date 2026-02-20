@@ -13,7 +13,7 @@ def to_bold(num_str):
 
 class FootnoteSelector(tk.Tk):
     def __init__(self):
-        filename = input("Input file: ") or 'input.json'
+        filename = input("Input file (input.json): ") or 'input.json'
         super().__init__()
         self.title("Footnote Reference Selector")
         self.geometry("740x700")
@@ -82,8 +82,10 @@ class FootnoteSelector(tk.Tk):
         scrollbar = tk.Scrollbar(frame, orient=tk.VERTICAL, command=self.listbox.yview)
         scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
         self.listbox.config(yscrollcommand=scrollbar.set)
-        for token in self.tokens:
+        for idx, token in enumerate(self.tokens):
             self.listbox.insert(tk.END, token["snippet"])
+            if token["number"] < 1000:
+                self.listbox.itemconfig(idx, {'fg': 'red'})
         button_frame = tk.Frame(self)
         button_frame.pack(fill=tk.X, padx=10, pady=5)
         process_button = tk.Button(button_frame, text="Apply <sup> Tags", command=self.apply_sup_tags)
