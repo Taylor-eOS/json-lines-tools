@@ -4,45 +4,65 @@ from pathlib import Path
 
 INPUT_FILE = 'input.json'
 
-def diagnose_jsonl_file(filepath):
+def main():
+    filepath = INPUT_FILE
+    input_path = validate_file_exists(filepath)
+    if input_path is None:
+        sys.exit(1)
+    print(f"Checking file: {input_path}")
+    process_jsonl_file(input_path)
+    print("Scan finished.")
+
+def validate_file_exists(filepath):
     path = Path(filepath)
     if not path.is_file():
         print(f"File not found: {filepath}")
-        return
-    print(f"Checking file: {path}")
+        return None
+    return path
+
+def process_jsonl_file(path):
     with path.open("r", encoding="utf-8") as f:
-        for i, line in enumerate(f, 1):
+        for line_num, line in enumerate(f, 1):
             line = line.rstrip("\r\n")
             if not line.strip():
                 continue
-            try:
-                data = json.loads(line)
-                continue
-            except json.JSONDecodeError as e:
-                print(f"ERROR on line {i:5d}: {e}")
-                print(f"Content : {line}")
-                col = e.pos
-                if col < len(line):
-                    print("Position : " + " " * col + "^")
-                else:
-                    print("Position : (at or after end of line)")
-                if '"' in line and line.count('"') % 2 == 1:
-                    print("→ odd number of quotes → likely unescaped or missing closing \"")
-                if "\\" in line:
-                    before = line[:col]
-                    after = line[col-10:col+15] if col >= 10 else line[:col+15]
-                    if "\\u" not in before and "\\x" not in before:
-                        suspicious = [c for c in after if ord(c) < 32 or c in "\\\""]
-                        if suspicious:
-                            print(f"→ suspicious char(s) near error: {repr(''.join(suspicious))}")
-                if "\\mathbb" in line or "\\mathbf" in line or "\\mathcal" in line:
-                    print("→ LaTeX command detected → must be inside string and properly escaped")
-                    print("   Example correct:  \"text with \\\\mathbb{R}\"")
-                if any(ord(c) < 32 and c not in "\t\n\r" for c in line):
-                    print("→ control character(s) present (not allowed outside strings)")
-                print()
-    print("Scan finished.")
+            analyze_line(line, line_num)
+
+def analyze_line(line, line_num):
+    try:
+        json.loads(line)
+    except json.JSONDecodeError as e:
+        diagnose_error(line, line_num, e)
+
+def diagnose_error(line, line_num, error):
+    print(f"ERROR on line {line_num:5d}: {error}")
+    print(f"Content : {line}")
+    check_odd_quotes(line)
+    check_suspicious_characters(line, error.pos)
+    check_latex_commands(line)
+    check_control_characters(line)
+
+def check_odd_quotes(line):
+    if '"' in line and line.count('"') % 2 == 1:
+        print("  odd number of quotes, likely unescaped or missing closing \"")
+
+def check_suspicious_characters(line, error_pos):
+    start = max(0, error_pos - 10)
+    end = min(len(line), error_pos + 15)
+    window = line[start:end]
+    suspicious = [c for c in window if ord(c) < 32 or c in '\\"']
+    if suspicious:
+        print(f"  suspicious char(s) near error: {repr(''.join(suspicious))}")
+
+def check_latex_commands(line):
+    if "\\mathbb" in line or "\\mathbf" in line or "\\mathcal" in line:
+        print("  LaTeX command detected,  must be inside string and properly escaped")
+        print("  Example correct:  \"text with \\\\mathbb{R}\"")
+
+def check_control_characters(line):
+    if any(ord(c) < 32 and c not in "\t\n\r" for c in line):
+        print("  control character(s) present (not allowed outside strings)")
 
 if __name__ == "__main__":
-    diagnose_jsonl_file(INPUT_FILE)
+    main()
 
