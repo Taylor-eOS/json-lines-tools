@@ -35,23 +35,25 @@ def collect_blocks(lines):
     print("Blocks detected:", len(blocks))
     return blocks
 
+def consume_prefix(text, token, repeat):
+    if not text.startswith(token):
+        return text, 0
+    if not repeat:
+        return text[len(token):], 1
+    stripped, count = consume_prefix(text[len(token):], token, True)
+    return stripped, count + 1
+
 def classify_block(block):
     label = "p"
     text = block.lstrip()
-    if text.startswith("#"):
-        i = 0
-        length = len(text)
-        while i < length and text[i] == "#":
-            i += 1
-        text = text[i:].lstrip()
-        label = "h1"
-    elif text.startswith(">"):
-        i = 0
-        length = len(text)
-        while i < length and text[i] == ">":
-            i += 1
-        text = text[i:].lstrip()
-        label = "blockquote"
+    text_after, count = consume_prefix(text, "#", True)
+    if count > 0:
+        return {"label": "h1", "text": text_after.lstrip()}
+    text_after, count = consume_prefix(text, ">", True)
+    if count > 0:
+        return {"label": "blockquote", "text": text_after.lstrip()}
+    if text.startswith("<sup>"):
+        return {"label": "footer", "text": text}
     return {"label": label, "text": text}
 
 def write_output(path, blocks):
