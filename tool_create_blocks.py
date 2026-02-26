@@ -17,8 +17,9 @@ def collapse_tables(input_path, output_path):
                     blocks.append("".join(table_buffer))
                     table_buffer = []
             else:
-                if line.strip() != "":
-                    blocks.append(line.strip())
+                stripped = line.strip()
+                if stripped != "":
+                    blocks.append(stripped)
         else:
             table_buffer.append(line.strip())
             if "</table>" in line:
@@ -29,7 +30,23 @@ def collapse_tables(input_path, output_path):
         blocks.append("".join(table_buffer))
     with open(output_path, "w", encoding="utf-8") as out:
         for block in blocks:
-            obj = {"label": "p", "text": block}
+            label = "p"
+            text = block.lstrip()
+            if text.startswith("#"):
+                i = 0
+                length = len(text)
+                while i < length and text[i] == "#":
+                    i += 1
+                text = text[i:].lstrip()
+                label = "h1"
+            elif text.startswith(">"):
+                i = 0
+                length = len(text)
+                while i < length and text[i] == ">":
+                    i += 1
+                text = text[i:].lstrip()
+                label = "blockquote"
+            obj = {"label": label, "text": text}
             out.write(json.dumps(obj, ensure_ascii=False) + "\n")
 
 def main():
@@ -39,4 +56,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
